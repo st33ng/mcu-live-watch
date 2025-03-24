@@ -1,0 +1,10 @@
+.gradle
+.idea
+.qodana
+build
+.DS_Store
+*.pyc
+.ci/tmp/*
+.DS_Store
+.intellijPlatform/
+.DS_Store

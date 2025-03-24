@@ -1,0 +1,16 @@
+<idea-plugin>
+    <id>com.jfrog.MyPlugin</id>
+    <name>My Plugin</name>
+    <vendor>Tim</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.clion</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow factoryClass="com.jfrog.MyPlugin.clion.toolWindow.HelloWorldToolWindowFactory"
+                    id="MyPluginToolWindow"
+                    anchor="bottom"
+                    visibleOnStart="false"
+                    canCloseContent="true"/>
+    </extensions>
+</idea-plugin>
