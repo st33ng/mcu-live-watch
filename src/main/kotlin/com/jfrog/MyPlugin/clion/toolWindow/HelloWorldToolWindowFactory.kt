@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.table.JBTable
+import com.jfrog.MyPlugin.clion.StateServices.DebugSessionStateService
 import java.awt.BorderLayout
 import java.awt.GridLayout
 import java.awt.event.ActionEvent
@@ -47,10 +48,6 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
 
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val isDebug = ManagementFactory.getRuntimeMXBean()
-            .inputArguments.any { it.contains("-agentlib:jdwp") }
-        println("Debug mode: $isDebug")
-
         val panel = JPanel(BorderLayout())
 
         val tablePanel = JPanel(BorderLayout())
@@ -101,8 +98,8 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         val content = contentFactory.createContent(panel, "Elf Parser", false)
         toolWindow.contentManager.addContent(content)
 
-        // LIVE EXPR VIEW.
 
+        // LIVE EXPR VIEW.
         val liveExprPanel = JPanel(BorderLayout())
 
         // Создание controlPanel для кнопок "Start" и "Stop"
@@ -113,35 +110,67 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         val startButton = JButton("Start")
         startButton.addActionListener {
             //TODO проверка что таблица не пуста.
-            println("Start button clicked")
+            if(ApplicationManager.getApplication().getService(DebugSessionStateService::class.java).isDebugActive) {
+                Thread {
+                    try {
+                        // Создание сокета клиента
+                        val clientSocket =
+                            Socket("localhost", 12346) // подключаемся к серверу по локальному адресу и порту
 
-            Thread {
-                try {
-                    // Создание сокета клиента
-                    val clientSocket = Socket("localhost", 12346) // подключаемся к серверу по локальному адресу и порту
+                        // Создание потоков для отправки и получения данных
+                        val out = PrintWriter(clientSocket.getOutputStream(), true)
+                        val `in` = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
 
-                    // Создание потоков для отправки и получения данных
-                    val out = PrintWriter(clientSocket.getOutputStream(), true)
-                    val `in` = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+                        val tableModelLiveExpression = tableLiveExpression.model as DefaultTableModel
+                        val rowCount = tableModelLiveExpression.rowCount
 
-                    // Отправка сообщений серверу
-                    out.println("put;counter;4;0x20000098;1")
-                    out.println("put;counter1;4;0x20000094;1")
-                    out.println("start")
+                        // Проходим по всем строкам таблицы, исключая последнюю с "+"
+                        for (i in 1 until rowCount) {  // Начинаем с 1, чтобы пропустить первую строку с "+"
+                            val varName = tableModelLiveExpression.getValueAt(i, 0) as String  // Имя из первой колонки
 
-                    // Чтение данных от сервера
-                    var data: String?
-                    while (`in`.readLine().also { data = it } != null) {
-                        val text = data!!.trim()
-                        println(text)  // Печать полученной строки
+                            // Теперь извлекаем данные из tableModelElfPars по имени
+                            var elfData: List<String>? = null
+
+                            // Проходим по строкам tableModelElfPars, чтобы найти нужное имя
+                            for (j in 0 until tableModelElfPars.rowCount) {
+                                val elfVarName =
+                                    tableModelElfPars.getValueAt(j, 0)  // Имя из первой колонки tableModelElfPars
+                                if (elfVarName == varName) {
+                                    // Если нашли совпадение, извлекаем данные
+                                    elfData = (1 until tableModelElfPars.columnCount).map {
+                                        tableModelElfPars.getValueAt(j, it)
+                                    }
+                                    break
+                                }
+                            }
+
+                            if (elfData != null) {
+                                // Создаем сообщение для этого имени
+                                val address = elfData[0].removePrefix("0x").toInt(16)
+                                val message = createSocketMsg("put", varName, elfData[1].toInt(), address)
+                                out.println(message)
+                            } else {
+                                println("No data found for $varName")
+                            }
+                        }
+                        out.println(createSocketMsg("start"))
+
+                        // Чтение данных от сервера
+                        var data: String?
+                        while (`in`.readLine().also { data = it } != null) {
+                            val text = data!!.trim()
+                            println(text)
+                        }
+
+                        // Закрытие соединения
+                        clientSocket.close()
+                    } catch (e: IOException) {
+                        e.printStackTrace()
                     }
-
-                    // Закрытие соединения
-                    clientSocket.close()
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            }.start()
+                }.start()
+            }else{
+                println("Debug not started")
+            }
         }
 
         // Кнопка Stop
@@ -166,6 +195,16 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
 
         val liveExprContent = contentFactory.createContent(liveExprPanel, "Live Expressions", false)
         toolWindow.contentManager.addContent(liveExprContent)
+    }
+
+    private fun createSocketMsg(command: String, varName: String, varSize: Int, varAddress: Int, updFrqMs: Int = 1000): String {
+        val hexAddress = varAddress.toString(16)
+        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs}"
+
+    }
+
+    private fun createSocketMsg(command: String): String {
+        return command
     }
 
     private fun updateInfoPanel(panel: JPanel) {

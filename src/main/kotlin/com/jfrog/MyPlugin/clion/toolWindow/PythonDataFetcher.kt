@@ -68,7 +68,7 @@ class PythonDataFetcher(private val pythonExecutable: String, private val python
                 parsedData.add(arrayOf(
                     matcher.group(1)?.trim() ?: "",  // objectName
                     matcher.group(2) ?: "",          // address
-                    "${matcher.group(3)} байт"       // size
+                    "${matcher.group(3)}"       // size
                 ))
             } else if (line.isNotBlank()) {
                 println("Failed to parse line: $line")
