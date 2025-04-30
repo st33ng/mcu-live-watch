@@ -58,8 +58,7 @@ class PythonDataFetcher(private val pythonExecutable: String, private val python
     }
 
     private fun parseData(output: List<String>): List<Array<String>> {
-        // Улучшенное регулярное выражение для сложных имен функций
-        val pattern = Pattern.compile("(.+?)\\s+-\\s+Адрес:\\s+(0x[0-9a-fA-F]+)\\s+-\\s+Размер:\\s+(\\d+)\\s+байт")
+        val pattern = Pattern.compile("(.+?)\\s+-\\s+Адрес:\\s+(0x[0-9a-fA-F]+)\\s+-\\s+Размер:\\s+(\\d+)\\s+байт\\s+-\\s+Тип данных:\\s+(.+)")
         val parsedData = mutableListOf<Array<String>>()
 
         for (line in output) {
@@ -68,7 +67,8 @@ class PythonDataFetcher(private val pythonExecutable: String, private val python
                 parsedData.add(arrayOf(
                     matcher.group(1)?.trim() ?: "",  // objectName
                     matcher.group(2) ?: "",          // address
-                    "${matcher.group(3)}"       // size
+                    matcher.group(3) ?: "",          // size
+                    matcher.group(4)?.trim() ?: ""   // type
                 ))
             } else if (line.isNotBlank()) {
                 println("Failed to parse line: $line")

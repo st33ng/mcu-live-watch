@@ -25,7 +25,6 @@ import javax.swing.*
 import javax.swing.table.*
 
 import java.io.*
-import java.lang.management.ManagementFactory
 import java.net.*
 
 class HelloWorldToolWindowFactory : ToolWindowFactory {
@@ -46,6 +45,12 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
     private lateinit var tableLiveExpression: JTable
     private lateinit var tableModelLiveExpression: DefaultTableModel
 
+    @Volatile
+    private var readRunning = false
+    @Volatile
+    private var readAllow = false
+
+    private var clientSocket: Socket? = null
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val panel = JPanel(BorderLayout())
@@ -109,66 +114,85 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         // Кнопка Start
         val startButton = JButton("Start")
         startButton.addActionListener {
-            //TODO проверка что таблица не пуста.
-            if(ApplicationManager.getApplication().getService(DebugSessionStateService::class.java).isDebugActive) {
-                Thread {
-                    try {
-                        // Создание сокета клиента
-                        val clientSocket =
-                            Socket("localhost", 12346) // подключаемся к серверу по локальному адресу и порту
+            // Проверка: активна ли отладка и уже не запущено ли чтение
+            if(readRunning) {
+                PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("start"))
+                //TODO добавить переотправку после нажатия(если вдруг были добавлены новые)
+            }
+            readAllow = true
+            if (ApplicationManager.getApplication().getService(DebugSessionStateService::class.java).isDebugActive) {
+                if (!readRunning) {
+                    readRunning = true  // Устанавливаем до запуска потока
+                    Thread {
+                        try {
+                            clientSocket = Socket("localhost", 12346)
+                            val out = PrintWriter(clientSocket!!.getOutputStream(), true)
+                            val `in` = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
 
-                        // Создание потоков для отправки и получения данных
-                        val out = PrintWriter(clientSocket.getOutputStream(), true)
-                        val `in` = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+                            val tableModelLiveExpression = tableLiveExpression.model as DefaultTableModel
+                            val rowCount = tableModelLiveExpression.rowCount
 
-                        val tableModelLiveExpression = tableLiveExpression.model as DefaultTableModel
-                        val rowCount = tableModelLiveExpression.rowCount
+                            for (i in 1 until rowCount) { // Пропускаем первую строку с "+"
+                                val varName = tableModelLiveExpression.getValueAt(i, 0) as String
+                                var elfData: List<String>? = null
 
-                        // Проходим по всем строкам таблицы, исключая последнюю с "+"
-                        for (i in 1 until rowCount) {  // Начинаем с 1, чтобы пропустить первую строку с "+"
-                            val varName = tableModelLiveExpression.getValueAt(i, 0) as String  // Имя из первой колонки
-
-                            // Теперь извлекаем данные из tableModelElfPars по имени
-                            var elfData: List<String>? = null
-
-                            // Проходим по строкам tableModelElfPars, чтобы найти нужное имя
-                            for (j in 0 until tableModelElfPars.rowCount) {
-                                val elfVarName =
-                                    tableModelElfPars.getValueAt(j, 0)  // Имя из первой колонки tableModelElfPars
-                                if (elfVarName == varName) {
-                                    // Если нашли совпадение, извлекаем данные
-                                    elfData = (1 until tableModelElfPars.columnCount).map {
-                                        tableModelElfPars.getValueAt(j, it)
+                                for (j in 0 until tableModelElfPars.rowCount) {
+                                    val elfVarName = tableModelElfPars.getValueAt(j, 0)
+                                    if (elfVarName == varName) {
+                                        elfData = (1 until tableModelElfPars.columnCount).map {
+                                            tableModelElfPars.getValueAt(j, it).toString()
+                                        }
+                                        break
                                     }
-                                    break
+                                }
+
+                                if (elfData != null ) {
+                                    if(tableModelLiveExpression.getValueAt(i, 2) as Boolean == false) {
+                                        val address = elfData[0].removePrefix("0x").toInt(16)
+                                        val message = createSocketMsg("put", varName, elfData[1].toInt(), address)
+                                        out.println(message)
+
+                                        tableModelLiveExpression.setValueAt(true, i, 2)
+                                    }
+                                } else {
+                                    println("No data found for $varName")
                                 }
                             }
 
-                            if (elfData != null) {
-                                // Создаем сообщение для этого имени
-                                val address = elfData[0].removePrefix("0x").toInt(16)
-                                val message = createSocketMsg("put", varName, elfData[1].toInt(), address)
-                                out.println(message)
-                            } else {
-                                println("No data found for $varName")
+                            out.println(createSocketMsg("start"))
+
+                            // Чтение данных от сервера
+                            var data: String?
+                            while (`in`.readLine().also { data = it } != null) {
+                                if(readAllow) {
+                                    val text = data!!.trim()
+                                    val parts = text.split(";Data:")
+                                    if (parts.size == 2) {
+                                        val name = parts[0]
+                                        val value = parts[1]
+
+                                        for (row in 0 until tableModelLiveExpression.rowCount) {
+                                            val rowName = tableModelLiveExpression.getValueAt(row, 0) as? String
+                                            if (rowName == name) {
+                                                tableModelLiveExpression.setValueAt(value, row, 1)
+                                                break
+                                            }
+                                        }
+                                    }
+                                }
                             }
+                        } catch (e: IOException) {
+                            e.printStackTrace()
+                        } finally {
+                            // TODO обнулять все (все в false) в tableModelLiveExpression
+                            clientSocket!!.close()
+                            readRunning = false  // Поток завершился — можно снова запускать
                         }
-                        out.println(createSocketMsg("start"))
-
-                        // Чтение данных от сервера
-                        var data: String?
-                        while (`in`.readLine().also { data = it } != null) {
-                            val text = data!!.trim()
-                            println(text)
-                        }
-
-                        // Закрытие соединения
-                        clientSocket.close()
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
-                }.start()
-            }else{
+                    }.start()
+                } else {
+                    println("Already running, skipping")
+                }
+            } else {
                 println("Debug not started")
             }
         }
@@ -176,9 +200,8 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         // Кнопка Stop
         val stopButton = JButton("Stop")
         stopButton.addActionListener {
-            // Логика для остановки
-            println("Stop button clicked")
-            // Ваш код для остановки обработки
+            readAllow = false
+            PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("stop"))
         }
 
         // Добавляем кнопки на панель
@@ -218,9 +241,9 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
     private fun buildPythonArgs(): Array<String>? {
         if (currentElfPath == null) return null
 
-        val args = mutableListOf("-p", currentElfPath!!)
-        if (demangleEnabled) args.add("-d")
-
+        val args = mutableListOf("-p", currentElfPath!!) // path
+        if (demangleEnabled) args.add("-d") // demangle
+        args.add("-t") // types
         return args.toTypedArray()
     }
 
@@ -263,7 +286,7 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
     }
 
     private fun setupLiveExprTable() {
-        val columnNames = arrayOf("Expression", "Value")
+        val columnNames = arrayOf("Expression", "Value", "On server")
         tableModelLiveExpression = object : DefaultTableModel(columnNames, 0) {
             override fun isCellEditable(row: Int, column: Int): Boolean {
                 // Разрешить редактирование всех строк, кроме "плюса"
@@ -271,12 +294,11 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
             }
         }
 
-        tableModelLiveExpression.addRow(arrayOf("+", ""))
+        tableModelLiveExpression.addRow(arrayOf<Any>("+", "", false))
 
         tableLiveExpression = JBTable(tableModelLiveExpression)
 
         // Обработка клика на строку "+", добавление новой строки
-        // TODO добавить проверку что есть в раме.
         tableLiveExpression.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 val row = tableLiveExpression.rowAtPoint(e.point)
@@ -306,7 +328,7 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
                     }
 
                     // Добавляем строку с именем переменной, второй столбец — пустой
-                    tableModelLiveExpression.insertRow(tableModelLiveExpression.rowCount - 1, arrayOf(variableName, ""))
+                    tableModelLiveExpression.insertRow(tableModelLiveExpression.rowCount - 1, arrayOf<Any>(variableName, "", false))
                 }
             }
         })
@@ -357,8 +379,22 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         val actionItem = JMenuItem("Add to live expession")
         actionItem.addActionListener {
             val objectName = tableElfPars.getValueAt(row, 0).toString()
-            tableModelLiveExpression.addRow(arrayOf(objectName, ""))
-            // TODO добавить проверку что в раме.
+            var isSendToServer = false
+            // todo отправка если открыт сокет ?
+            if(readRunning){
+                var elfData: List<String>? = null
+
+                elfData = (1 until tableModelElfPars.columnCount).map {
+                    tableModelElfPars.getValueAt(row, it).toString()
+                }
+
+                val address = elfData[0].removePrefix("0x").toInt(16)
+                PrintWriter(clientSocket!!.getOutputStream(), true).println(
+                    createSocketMsg("put", objectName, elfData[1].toInt(), address)
+                )
+                isSendToServer = true
+            }
+            tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer))
         }
         popupMenu.add(actionItem)
         popupMenu.show(e.component, e.x, e.y)
@@ -376,9 +412,15 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         private var ascending = true
 
         override fun getRowCount() = data.size
-        override fun getColumnCount() = 3
+        override fun getColumnCount() = 4
         override fun getValueAt(row: Int, col: Int) = data[row][col]
-        override fun getColumnName(col: Int) = when(col) { 0 -> "OBJECT"; 1 -> "ADDRESS"; 2 -> "SIZE"; else -> "" }
+        override fun getColumnName(col: Int) = when (col) {
+            0 -> "OBJECT"
+            1 -> "ADDRESS"
+            2 -> "SIZE"
+            3 -> "TYPE"
+            else -> ""
+        }
 
         fun sortByColumn(column: Int) {
             if (column == sortColumn) {
