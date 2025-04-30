@@ -13,4 +13,11 @@
                     visibleOnStart="false"
                     canCloseContent="true"/>
     </extensions>
+    <applicationListeners>
+        <listener
+                class="com.jfrog.MyPlugin.clion.listener.DebugExecutionListener"
+                topic="com.intellij.execution.ExecutionListener"/>
+    </applicationListeners>
+
+
 </idea-plugin>
