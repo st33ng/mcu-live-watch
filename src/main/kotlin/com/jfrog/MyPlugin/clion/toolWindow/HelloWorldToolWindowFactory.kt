@@ -27,6 +27,7 @@ import javax.swing.table.*
 import java.io.*
 import java.net.*
 
+//TODO после выхода из дебага остановить запросы.
 class HelloWorldToolWindowFactory : ToolWindowFactory {
 
     private val pythonExecutable = "/Users/timtim/.local/pipx/venvs/pyelftools/bin/python3"
@@ -125,7 +126,7 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
                     readRunning = true  // Устанавливаем до запуска потока
                     Thread {
                         try {
-                            clientSocket = Socket("localhost", 12346)
+                            clientSocket = Socket("localhost", 12345)
                             val out = PrintWriter(clientSocket!!.getOutputStream(), true)
                             val `in` = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
 
@@ -149,7 +150,7 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
                                 if (elfData != null ) {
                                     if(tableModelLiveExpression.getValueAt(i, 2) as Boolean == false) {
                                         val address = elfData[0].removePrefix("0x").toInt(16)
-                                        val message = createSocketMsg("put", varName, elfData[1].toInt(), address)
+                                        val message = createSocketMsg("put", varName, elfData[1].toInt(), address, elfData[2])
                                         out.println(message)
 
                                         tableModelLiveExpression.setValueAt(true, i, 2)
@@ -218,11 +219,15 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
 
         val liveExprContent = contentFactory.createContent(liveExprPanel, "Live Expressions", false)
         toolWindow.contentManager.addContent(liveExprContent)
-    }
 
-    private fun createSocketMsg(command: String, varName: String, varSize: Int, varAddress: Int, updFrqMs: Int = 1000): String {
+
+        val pythonServer = PythonDataServer()
+        pythonServer.start("/Users/timtim/PycharmProjects/pythonProject/sockets_var.py")
+    }
+    
+    private fun createSocketMsg(command: String, varName: String, varSize: Int, varAddress: Int, varType: String, updFrqMs: Int = 1000): String {
         val hexAddress = varAddress.toString(16)
-        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs}"
+        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs};${varType}"
 
     }
 
@@ -390,7 +395,7 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
 
                 val address = elfData[0].removePrefix("0x").toInt(16)
                 PrintWriter(clientSocket!!.getOutputStream(), true).println(
-                    createSocketMsg("put", objectName, elfData[1].toInt(), address)
+                    createSocketMsg("put", objectName, elfData[1].toInt(), address, elfData[2])
                 )
                 isSendToServer = true
             }

@@ -19,5 +19,4 @@
                 topic="com.intellij.execution.ExecutionListener"/>
     </applicationListeners>
 
-
 </idea-plugin>
