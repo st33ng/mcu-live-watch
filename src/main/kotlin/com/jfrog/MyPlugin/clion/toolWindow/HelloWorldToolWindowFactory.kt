@@ -4,11 +4,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
-import com.jfrog.MyPlugin.clion.toolWindow.ElfParsePanel
-import com.jfrog.MyPlugin.clion.toolWindow.LiveExperssionPanel
-
-import java.io.*
-import java.net.*
 
 //TODO после выхода из дебага остановить запросы.
 class HelloWorldToolWindowFactory : ToolWindowFactory {

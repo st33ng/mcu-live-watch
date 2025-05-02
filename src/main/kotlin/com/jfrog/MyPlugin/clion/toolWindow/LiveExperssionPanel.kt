@@ -39,6 +39,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
     private var clientSocket: Socket? = null
 
     init {
+        val app = ApplicationManager.getApplication()
         val liveExprControlPanel = JPanel()
         liveExprControlPanel.layout = BoxLayout(liveExprControlPanel, BoxLayout.X_AXIS)
 
@@ -46,14 +47,13 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
         val startButton = JButton("Start")
         startButton.addActionListener {
             // Проверка: активна ли отладка и уже не запущено ли чтение
-            if(ApplicationManager.getApplication().getService(ReadThreadRunningStateService::class.java).readRunning) {
+            if(app.readThreadState.readRunning) {
                 PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("start"))
-                //TODO добавить переотправку после нажатия(если вдруг были добавлены новые)
             }
-            ApplicationManager.getApplication().getService(ReadAllowStateService::class.java).readAllow = true
-            if (ApplicationManager.getApplication().getService(DebugSessionStateService::class.java).isDebugActive) {
-                if (!ApplicationManager.getApplication().getService(ReadThreadRunningStateService::class.java).readRunning) {
-                    ApplicationManager.getApplication().getService(ReadThreadRunningStateService::class.java).readRunning = true  // Устанавливаем до запуска потока
+            app.readAllowState.readAllow = true
+            if (app.debugSessionState.isDebugActive) {
+                if (!app.readThreadState.readRunning) {
+                    app.readThreadState.readRunning = true  // Устанавливаем до запуска потока
                     Thread {
                         try {
                             clientSocket = Socket("localhost", 12345)
@@ -95,7 +95,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
                             // Чтение данных от сервера
                             var data: String?
                             while (`in`.readLine().also { data = it } != null) {
-                                if(ApplicationManager.getApplication().getService(ReadAllowStateService::class.java).readAllow ) {
+                                if( app.readAllowState.readAllow ) {
                                     val text = data!!.trim()
                                     val parts = text.split(";Data:")
                                     if (parts.size == 2) {
@@ -117,7 +117,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
                         } finally {
                             // TODO обнулять все (все в false) в tableModelLiveExpression
                             clientSocket!!.close()
-                            ApplicationManager.getApplication().getService(ReadThreadRunningStateService::class.java).readRunning = false  // Поток завершился — можно снова запускать
+                            app.readThreadState.readRunning = false  // Поток завершился — можно снова запускать
                         }
                     }.start()
                 } else {
@@ -131,7 +131,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
         // Кнопка Stop
         val stopButton = JButton("Stop")
         stopButton.addActionListener {
-            ApplicationManager.getApplication().getService(ReadAllowStateService::class.java).readAllow  = false
+             app.readAllowState.readAllow  = false
             PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("stop"))
         }
 
