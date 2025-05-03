@@ -17,13 +17,11 @@ import javax.swing.*
 import javax.swing.table.*
 
 import com.intellij.openapi.project.Project
-import com.jfrog.MyPlugin.clion.StateServices.DebugSessionStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadThreadRunningStateService
 import com.jfrog.MyPlugin.clion.Storage.ElfTable
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableModelElfPars
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableElfPars
 import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable
-import java.io.PrintWriter
 
 class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
     private var tableVisible = true
@@ -206,9 +204,9 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
 
                 val address = elfData[0].removePrefix("0x").toInt(16)
                 //TODO
-              /*  PrintWriter(clientSocket!!.getOutputStream(), true).println(
-                    createSocketMsg("put", objectName, elfData[1].toInt(), address, elfData[2])
-                )*/
+
+                //SocketClient.sendMessage(createSocketMsg("put", objectName, elfData[1].toInt(), address, elfData[2]))
+
                 isSendToServer = true
             }
             LiveExperssionTable.tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer))
@@ -274,14 +272,5 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
         private inner class CancelAction : AbstractAction("Cancel") {
             override fun actionPerformed(e: ActionEvent) = doCancelAction()
         }
-    }
-    private fun createSocketMsg(command: String, varName: String, varSize: Int, varAddress: Int, varType: String, updFrqMs: Int = 1000): String {
-        val hexAddress = varAddress.toString(16)
-        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs};${varType}"
-
-    }
-
-    private fun createSocketMsg(command: String): String {
-        return command
     }
 }

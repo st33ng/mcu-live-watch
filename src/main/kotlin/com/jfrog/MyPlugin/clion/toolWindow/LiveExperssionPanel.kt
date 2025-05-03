@@ -7,202 +7,265 @@ import com.intellij.ui.table.JBTable
 import com.jfrog.MyPlugin.clion.StateServices.DebugSessionStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadAllowStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadThreadRunningStateService
-import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableElfPars
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableModelElfPars
 import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable.tableLiveExpression
 import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable.tableModelLiveExpression
 import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.io.PrintWriter
-import java.net.Socket
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JOptionPane
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import javax.swing.table.DefaultTableModel
+import kotlin.concurrent.thread
 
 class LiveExperssionPanel : JPanel(BorderLayout()) {
+    private val app = ApplicationManager.getApplication()
+    private val Application.services get() = Services(app)
 
-    val Application.readAllowState: ReadAllowStateService
-        get() = getService(ReadAllowStateService::class.java)
+    private class Services(val app: Application) {
+        val readAllow: ReadAllowStateService get() = app.getService(ReadAllowStateService::class.java)
+        val debugSession: DebugSessionStateService get() = app.getService(DebugSessionStateService::class.java)
+        val readThread: ReadThreadRunningStateService get() = app.getService(ReadThreadRunningStateService::class.java)
+    }
 
-    val Application.debugSessionState: DebugSessionStateService
-        get() = getService(DebugSessionStateService::class.java)
-
-    val Application.readThreadState: ReadThreadRunningStateService
-        get() = getService(ReadThreadRunningStateService::class.java)
-
-    private var clientSocket: Socket? = null
+    private var readingThread: Thread? = null
+    private val socketPort = 12345
 
     init {
-        val app = ApplicationManager.getApplication()
-        val liveExprControlPanel = JPanel()
-        liveExprControlPanel.layout = BoxLayout(liveExprControlPanel, BoxLayout.X_AXIS)
-
-        // Кнопка Start
-        val startButton = JButton("Start")
-        startButton.addActionListener {
-            // Проверка: активна ли отладка и уже не запущено ли чтение
-            if(app.readThreadState.readRunning) {
-                PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("start"))
-            }
-            app.readAllowState.readAllow = true
-            if (app.debugSessionState.isDebugActive) {
-                if (!app.readThreadState.readRunning) {
-                    app.readThreadState.readRunning = true  // Устанавливаем до запуска потока
-                    Thread {
-                        try {
-                            clientSocket = Socket("localhost", 12345)
-                            val out = PrintWriter(clientSocket!!.getOutputStream(), true)
-                            val `in` = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
-
-                            val tableModelLiveExpression = tableLiveExpression.model as DefaultTableModel
-                            val rowCount = tableModelLiveExpression.rowCount
-
-                            for (i in 1 until rowCount) { // Пропускаем первую строку с "+"
-                                val varName = tableModelLiveExpression.getValueAt(i, 0) as String
-                                var elfData: List<String>? = null
-
-                                for (j in 0 until tableModelElfPars.rowCount) {
-                                    val elfVarName = tableModelElfPars.getValueAt(j, 0)
-                                    if (elfVarName == varName) {
-                                        elfData = (1 until tableModelElfPars.columnCount).map {
-                                            tableModelElfPars.getValueAt(j, it).toString()
-                                        }
-                                        break
-                                    }
-                                }
-
-                                if (elfData != null ) {
-                                    if(tableModelLiveExpression.getValueAt(i, 2) as Boolean == false) {
-                                        val address = elfData[0].removePrefix("0x").toInt(16)
-                                        val message = createSocketMsg("put", varName, elfData[1].toInt(), address, elfData[2])
-                                        out.println(message)
-
-                                        tableModelLiveExpression.setValueAt(true, i, 2)
-                                    }
-                                } else {
-                                    println("No data found for $varName")
-                                }
-                            }
-
-                            out.println(createSocketMsg("start"))
-
-                            // Чтение данных от сервера
-                            var data: String?
-                            while (`in`.readLine().also { data = it } != null) {
-                                if( app.readAllowState.readAllow ) {
-                                    val text = data!!.trim()
-                                    val parts = text.split(";Data:")
-                                    if (parts.size == 2) {
-                                        val name = parts[0]
-                                        val value = parts[1]
-
-                                        for (row in 0 until tableModelLiveExpression.rowCount) {
-                                            val rowName = tableModelLiveExpression.getValueAt(row, 0) as? String
-                                            if (rowName == name) {
-                                                tableModelLiveExpression.setValueAt(value, row, 1)
-                                                break
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (e: IOException) {
-                            e.printStackTrace()
-                        } finally {
-                            // TODO обнулять все (все в false) в tableModelLiveExpression
-                            clientSocket!!.close()
-                            app.readThreadState.readRunning = false  // Поток завершился — можно снова запускать
-                        }
-                    }.start()
-                } else {
-                    println("Already running, skipping")
-                }
-            } else {
-                println("Debug not started")
-            }
-        }
-
-        // Кнопка Stop
-        val stopButton = JButton("Stop")
-        stopButton.addActionListener {
-             app.readAllowState.readAllow  = false
-            PrintWriter(clientSocket!!.getOutputStream(), true).println(createSocketMsg("stop"))
-        }
-
-        // Добавляем кнопки на панель
-        liveExprControlPanel.add(startButton)
-        liveExprControlPanel.add(stopButton)
-
-        // Добавляем controlPanel в liveExprPanel
-
-        this.add(liveExprControlPanel, BorderLayout.NORTH)
-        setupLiveExprTable()
-        val scrollPane = JBScrollPane(tableLiveExpression)
-        this.add(scrollPane, BorderLayout.CENTER)
+        setupUI()
     }
 
-    private fun setupLiveExprTable() {
-        val columnNames = arrayOf("Expression", "Value", "On server")
-        tableModelLiveExpression = object : DefaultTableModel(columnNames, 0) {
-            override fun isCellEditable(row: Int, column: Int): Boolean {
-                // Разрешить редактирование всех строк, кроме "плюса"
-                return row != rowCount - 1
-            }
+    private fun setupUI() {
+        val controlPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(createStartButton())
+            add(createStopButton())
         }
 
-        tableModelLiveExpression.addRow(arrayOf<Any>("+", "", false))
+        add(controlPanel, BorderLayout.NORTH)
+        setupLiveExpressionTable()
+        add(JBScrollPane(tableLiveExpression), BorderLayout.CENTER)
+    }
 
-        tableLiveExpression = JBTable(tableModelLiveExpression)
+    private fun createStartButton(): JButton = JButton("Start").apply {
+        addActionListener {
+            if (!app.services.debugSession.isDebugActive) {
+                showDebugNotActiveWarning()
+                return@addActionListener
+            }
 
-        // Обработка клика на строку "+", добавление новой строки
-        tableLiveExpression.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                val row = tableLiveExpression.rowAtPoint(e.point)
-                if (row == tableModelLiveExpression.rowCount - 1) {
-                    // Получаем предполагаемое имя переменной (можно также сразу фокус туда поставить и подождать ввода)
-                    val variableName = JOptionPane.showInputDialog(
-                        tableLiveExpression,
-                        "Введите имя переменной (должна быть в ELF таблице):",
-                        "Добавление выражения",
-                        JOptionPane.PLAIN_MESSAGE
-                    ) ?: return
+            startLiveExpressionSession()
+        }
+    }
 
-                    // Проверка: есть ли такое имя в elfParsTable
-                    val found = (0 until tableElfPars.rowCount).any { i ->
-                        val value = tableElfPars.getValueAt(i, 0)?.toString()?.trim()
-                        value.equals(variableName.trim(), ignoreCase = true)
-                    }
+    private fun createStopButton(): JButton = JButton("Stop").apply {
+        addActionListener {
+            stopLiveExpressionSession()
+        }
+    }
 
-                    if (!found) {
-                        JOptionPane.showMessageDialog(
-                            tableLiveExpression,
-                            "Переменная '$variableName' не найдена в ELF таблице.",
-                            "Ошибка",
-                            JOptionPane.ERROR_MESSAGE
-                        )
-                        return
-                    }
+    private fun startLiveExpressionSession() {
+        app.services.readAllow.readAllow = true
 
-                    // Добавляем строку с именем переменной, второй столбец — пустой
-                    tableModelLiveExpression.insertRow(tableModelLiveExpression.rowCount - 1, arrayOf<Any>(variableName, "", false))
+        if (app.services.readThread.readRunning) {
+            SocketClient.resume()
+            SocketClient.send("start")
+            return
+        }
+
+        app.services.readThread.readRunning = true
+        readingThread = thread(isDaemon = true, name = "LiveExpressionThread") {
+            try {
+                initializeSocketConnection()
+                registerVariables()
+                startDataListening()
+            } catch (e: Exception) {
+                handleSessionError(e)
+            } finally {
+                cleanupAfterSession()
+            }
+        }
+    }
+
+    private fun initializeSocketConnection() {
+        println("initializeSocketConnection")
+        if (!SocketClient.isConnected && !SocketClient.connect(socketPort)) {
+            throw IllegalStateException("Failed to connect to socket server")
+        }
+    }
+
+    private fun registerVariables() {
+        println("registerVariables")
+        val model = tableLiveExpression.model as DefaultTableModel
+        for (i in 1 until model.rowCount) {
+            val varName = model.getValueAt(i, 0) as? String ?: continue
+            val isRegistered = model.getValueAt(i, 2) as? Boolean == true
+
+            if (!isRegistered) {
+                registerVariable(varName, i, model)
+            }
+        }
+        SocketClient.send("start")
+    }
+
+    private fun registerVariable(varName: String, row: Int, model: DefaultTableModel) {
+        findElfData(varName)?.let { elfData ->
+            val address = elfData[0].removePrefix("0x").toInt(16)
+            val message = SocketClient.createSocketMessage("put", varName, elfData[1].toInt(), address, elfData[2])
+            SocketClient.send(message)
+            model.setValueAt(true, row, 2)
+        } ?: println("No ELF data found for $varName")
+    }
+
+    private fun findElfData(varName: String): List<String>? {
+        for (j in 0 until tableModelElfPars.rowCount) {
+            if (tableModelElfPars.getValueAt(j, 0) == varName) {
+                return (1 until tableModelElfPars.columnCount).map {
+                    tableModelElfPars.getValueAt(j, it).toString()
                 }
             }
-        })
-        tableLiveExpression.fillsViewportHeight = true
-    }
-    private fun createSocketMsg(command: String, varName: String, varSize: Int, varAddress: Int, varType: String, updFrqMs: Int = 1000): String {
-        val hexAddress = varAddress.toString(16)
-        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs};${varType}"
-
+        }
+        return null
     }
 
-    private fun createSocketMsg(command: String): String {
-        return command
+    private fun startDataListening() {
+        println("startDataListening readRunning = ${app.services.readThread.readRunning}")
+        while (app.services.readThread.readRunning) {
+            try {
+                if (SocketClient.isPaused()) {
+                    Thread.sleep(100) // Короткая пауза при остановке
+                    continue
+                }
+
+                SocketClient.readLine()?.takeIf { app.services.readAllow.readAllow }?.let {
+                    processIncomingData(it)
+                }
+            } catch (e: Exception) {
+                handleReadError(e)
+            }
+        }
+    }
+
+    private fun reconnect(): Boolean {
+        Thread.sleep(1000)
+        return SocketClient.connect(socketPort)
+    }
+
+    private fun processIncomingData(data: String) {
+        println("processIncomingData")
+        val (name, value) = data.trim().split(";Data:").takeIf { it.size == 2 } ?: return
+
+        SwingUtilities.invokeLater {
+            findTableRowByName(name)?.let { row ->
+                tableModelLiveExpression.setValueAt(value, row, 1)
+            }
+        }
+    }
+
+    private fun findTableRowByName(name: String): Int? {
+        for (row in 0 until tableModelLiveExpression.rowCount) {
+            if (tableModelLiveExpression.getValueAt(row, 0) == name) {
+                return row
+            }
+        }
+        return null
+    }
+
+    private fun handleSessionError(e: Exception) {
+        e.printStackTrace()
+        println("Live expression session failed")
+    }
+
+    private fun handleReadError(e: Exception) {
+        println("Read error: ${e.message}")
+            //SocketClient.disconnect()
+    }
+
+    private fun cleanupAfterSession() {
+        SwingUtilities.invokeLater {
+            resetTableModel()
+        }
+        app.services.readThread.readRunning = false
+        println("Live expression session paused")
+    }
+
+    private fun resetTableModel() {
+        for (row in 0 until tableModelLiveExpression.rowCount) {
+            tableModelLiveExpression.setValueAt("", row, 1)
+            tableModelLiveExpression.setValueAt(false, row, 2)
+        }
+    }
+
+    private fun stopLiveExpressionSession() {
+        app.services.readAllow.readAllow = false
+        SocketClient.pause()
+        SocketClient.send("stop")
+    }
+
+    private fun showDebugNotActiveWarning() {
+        JOptionPane.showMessageDialog(
+            this,
+            "Debug session not active",
+            "Warning",
+            JOptionPane.WARNING_MESSAGE
+        )
+    }
+
+    private fun setupLiveExpressionTable() {
+        tableModelLiveExpression = object : DefaultTableModel(arrayOf("Expression", "Value", "On server"), 0) {
+            override fun isCellEditable(row: Int, column: Int) = row != rowCount - 1
+        }.apply {
+            addRow(arrayOf<Any>("+", "", false))
+        }
+
+        tableLiveExpression = JBTable(tableModelLiveExpression).apply {
+            addMouseListener(createAddRowMouseListener())
+            fillsViewportHeight = true
+        }
+    }
+
+    private fun createAddRowMouseListener() = object : MouseAdapter() {
+        override fun mouseClicked(e: MouseEvent) {
+            if (tableLiveExpression.rowAtPoint(e.point) == tableModelLiveExpression.rowCount - 1) {
+                addNewVariableRow()
+            }
+        }
+    }
+
+    private fun addNewVariableRow() {
+        val variableName = JOptionPane.showInputDialog(
+            tableLiveExpression,
+            "Enter variable name (must exist in ELF table):",
+            "Add Expression",
+            JOptionPane.PLAIN_MESSAGE
+        )?.takeIf { it.isNotBlank() } ?: return
+
+        if (!isVariableInElfTable(variableName)) {
+            showVariableNotFoundWarning(variableName)
+            return
+        }
+
+        tableModelLiveExpression.insertRow(
+            tableModelLiveExpression.rowCount - 1,
+            arrayOf<Any>(variableName, "", false)
+        )
+    }
+
+    private fun isVariableInElfTable(name: String): Boolean {
+        return (0 until tableModelElfPars.rowCount).any { i ->
+            tableModelElfPars.getValueAt(i, 0).toString().trim().equals(name.trim(), ignoreCase = true) == true
+        }
+    }
+
+    private fun showVariableNotFoundWarning(name: String) {
+        JOptionPane.showMessageDialog(
+            tableLiveExpression,
+            "Variable '$name' not found in ELF table",
+            "Error",
+            JOptionPane.ERROR_MESSAGE
+        )
     }
 }
