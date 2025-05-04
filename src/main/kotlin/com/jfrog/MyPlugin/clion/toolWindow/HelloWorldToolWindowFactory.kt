@@ -24,7 +24,6 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         val graphContent = contentFactory.createContent(graphPanel, "Graph", false)
         toolWindow.contentManager.addContent(graphContent)
 
-
         val pythonServer = PythonDataServer()
         pythonServer.start("/Users/timtim/PycharmProjects/pythonProject/sockets_var.py")
     }

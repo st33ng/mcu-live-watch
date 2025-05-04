@@ -3,16 +3,14 @@ package com.jfrog.MyPlugin.clion.toolWindow
 import com.intellij.openapi.application.Application
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.table.JBTable
 import com.jfrog.MyPlugin.clion.StateServices.DebugSessionStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadAllowStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadThreadRunningStateService
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableModelElfPars
+import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable
 import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable.tableLiveExpression
 import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable.tableModelLiveExpression
 import java.awt.BorderLayout
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JOptionPane
@@ -131,7 +129,6 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
     }
 
     private fun startDataListening() {
-        println("startDataListening readRunning = ${app.services.readThread.readRunning}")
         while (app.services.readThread.readRunning) {
             try {
                 if (SocketClient.isPaused()) {
@@ -154,23 +151,9 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
     }
 
     private fun processIncomingData(data: String) {
-        println("processIncomingData")
         val (name, value) = data.trim().split(";Data:").takeIf { it.size == 2 } ?: return
 
-        SwingUtilities.invokeLater {
-            findTableRowByName(name)?.let { row ->
-                tableModelLiveExpression.setValueAt(value, row, 1)
-            }
-        }
-    }
-
-    private fun findTableRowByName(name: String): Int? {
-        for (row in 0 until tableModelLiveExpression.rowCount) {
-            if (tableModelLiveExpression.getValueAt(row, 0) == name) {
-                return row
-            }
-        }
-        return null
+        LiveExpressionTable.updateValue(name, value)
     }
 
     private fun handleSessionError(e: Exception) {
@@ -185,17 +168,10 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
 
     private fun cleanupAfterSession() {
         SwingUtilities.invokeLater {
-            resetTableModel()
+            LiveExpressionTable.resetTableModel()
         }
         app.services.readThread.readRunning = false
         println("Live expression session paused")
-    }
-
-    private fun resetTableModel() {
-        for (row in 0 until tableModelLiveExpression.rowCount) {
-            tableModelLiveExpression.setValueAt("", row, 1)
-            tableModelLiveExpression.setValueAt(false, row, 2)
-        }
     }
 
     private fun stopLiveExpressionSession() {

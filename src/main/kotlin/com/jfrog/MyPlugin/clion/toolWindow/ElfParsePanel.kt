@@ -203,9 +203,7 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
                 }
 
                 val address = elfData[0].removePrefix("0x").toInt(16)
-                //TODO
-
-                //SocketClient.sendMessage(createSocketMsg("put", objectName, elfData[1].toInt(), address, elfData[2]))
+                SocketClient.send(SocketClient.createSocketMessage("put", objectName, elfData[1].toInt(), address, elfData[2]))
 
                 isSendToServer = true
             }

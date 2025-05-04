@@ -65,7 +65,6 @@ object SocketClient {
     }
 
     fun send(message: String): Unit = synchronized(connectionLock) {
-        println("IN SEND $isConnected")
         if (socket?.isConnected == false) return
 
         try {

@@ -34,6 +34,7 @@ repositories {
 dependencies {
     testImplementation(libs.junit)
     implementation(libs.kotlinxSerializationJson)
+    implementation("org.jfree:jfreechart:1.5.4")
     intellijPlatform {
         create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
