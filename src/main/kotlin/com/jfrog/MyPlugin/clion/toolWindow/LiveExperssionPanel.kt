@@ -8,8 +8,8 @@ import com.jfrog.MyPlugin.clion.StateServices.DebugSessionStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadAllowStateService
 import com.jfrog.MyPlugin.clion.StateServices.ReadThreadRunningStateService
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableModelElfPars
-import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable.tableLiveExpression
-import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable.tableModelLiveExpression
+import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable.tableLiveExpression
+import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable.tableModelLiveExpression
 import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -46,7 +46,6 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
         }
 
         add(controlPanel, BorderLayout.NORTH)
-        setupLiveExpressionTable()
         add(JBScrollPane(tableLiveExpression), BorderLayout.CENTER)
     }
 
@@ -211,61 +210,6 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
             "Debug session not active",
             "Warning",
             JOptionPane.WARNING_MESSAGE
-        )
-    }
-
-    private fun setupLiveExpressionTable() {
-        tableModelLiveExpression = object : DefaultTableModel(arrayOf("Expression", "Value", "On server"), 0) {
-            override fun isCellEditable(row: Int, column: Int) = row != rowCount - 1
-        }.apply {
-            addRow(arrayOf<Any>("+", "", false))
-        }
-
-        tableLiveExpression = JBTable(tableModelLiveExpression).apply {
-            addMouseListener(createAddRowMouseListener())
-            fillsViewportHeight = true
-        }
-    }
-
-    private fun createAddRowMouseListener() = object : MouseAdapter() {
-        override fun mouseClicked(e: MouseEvent) {
-            if (tableLiveExpression.rowAtPoint(e.point) == tableModelLiveExpression.rowCount - 1) {
-                addNewVariableRow()
-            }
-        }
-    }
-
-    private fun addNewVariableRow() {
-        val variableName = JOptionPane.showInputDialog(
-            tableLiveExpression,
-            "Enter variable name (must exist in ELF table):",
-            "Add Expression",
-            JOptionPane.PLAIN_MESSAGE
-        )?.takeIf { it.isNotBlank() } ?: return
-
-        if (!isVariableInElfTable(variableName)) {
-            showVariableNotFoundWarning(variableName)
-            return
-        }
-
-        tableModelLiveExpression.insertRow(
-            tableModelLiveExpression.rowCount - 1,
-            arrayOf<Any>(variableName, "", false)
-        )
-    }
-
-    private fun isVariableInElfTable(name: String): Boolean {
-        return (0 until tableModelElfPars.rowCount).any { i ->
-            tableModelElfPars.getValueAt(i, 0).toString().trim().equals(name.trim(), ignoreCase = true) == true
-        }
-    }
-
-    private fun showVariableNotFoundWarning(name: String) {
-        JOptionPane.showMessageDialog(
-            tableLiveExpression,
-            "Variable '$name' not found in ELF table",
-            "Error",
-            JOptionPane.ERROR_MESSAGE
         )
     }
 }

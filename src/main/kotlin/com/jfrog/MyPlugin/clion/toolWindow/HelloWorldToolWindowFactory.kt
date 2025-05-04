@@ -20,6 +20,10 @@ class HelloWorldToolWindowFactory : ToolWindowFactory {
         val liveExprContent = contentFactory.createContent(liveExprPanel, "Live Expressions", false)
         toolWindow.contentManager.addContent(liveExprContent)
 
+        val graphPanel = GraphPanel()
+        val graphContent = contentFactory.createContent(graphPanel, "Graph", false)
+        toolWindow.contentManager.addContent(graphContent)
+
 
         val pythonServer = PythonDataServer()
         pythonServer.start("/Users/timtim/PycharmProjects/pythonProject/sockets_var.py")

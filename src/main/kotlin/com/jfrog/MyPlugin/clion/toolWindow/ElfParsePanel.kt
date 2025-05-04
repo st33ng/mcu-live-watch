@@ -21,7 +21,7 @@ import com.jfrog.MyPlugin.clion.StateServices.ReadThreadRunningStateService
 import com.jfrog.MyPlugin.clion.Storage.ElfTable
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableModelElfPars
 import com.jfrog.MyPlugin.clion.Storage.ElfTable.tableElfPars
-import com.jfrog.MyPlugin.clion.Storage.LiveExperssionTable
+import com.jfrog.MyPlugin.clion.Storage.LiveExpressionTable
 
 class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
     private var tableVisible = true
@@ -209,7 +209,7 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
 
                 isSendToServer = true
             }
-            LiveExperssionTable.tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer))
+            LiveExpressionTable.tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer))
         }
         popupMenu.add(actionItem)
         popupMenu.show(e.component, e.x, e.y)
