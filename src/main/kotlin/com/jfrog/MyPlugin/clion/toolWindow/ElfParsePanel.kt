@@ -194,7 +194,8 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
         actionItem.addActionListener {
             val objectName = tableElfPars.getValueAt(row, 0).toString()
             var isSendToServer = false
-            // todo отправка если открыт сокет ?
+            var baseFrq = 1000
+
             if(ApplicationManager.getApplication().getService(ReadThreadRunningStateService::class.java).readRunning){
                 var elfData: List<String>? = null
 
@@ -203,11 +204,11 @@ class ElfParsePanel(project: Project) : JPanel(BorderLayout()) {
                 }
 
                 val address = elfData[0].removePrefix("0x").toInt(16)
-                SocketClient.send(SocketClient.createSocketMessage("put", objectName, elfData[1].toInt(), address, elfData[2], 1))
+                SocketClient.send(SocketClient.createSocketMessage("put", objectName, elfData[1].toInt(), address, elfData[2], baseFrq))
 
                 isSendToServer = true
             }
-            LiveExpressionTable.tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer))
+            LiveExpressionTable.tableModelLiveExpression.addRow(arrayOf<Any>(objectName, "", isSendToServer, baseFrq.toString()))
         }
         popupMenu.add(actionItem)
         popupMenu.show(e.component, e.x, e.y)

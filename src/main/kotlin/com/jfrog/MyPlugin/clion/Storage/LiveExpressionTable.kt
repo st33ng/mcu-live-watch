@@ -29,10 +29,10 @@ object LiveExpressionTable {
         get() = _tableLiveExpression
 
     private fun createTableModel(): DefaultTableModel {
-        return object : DefaultTableModel(arrayOf("Expression", "Value", "On server"), 0) {
+        return object : DefaultTableModel(arrayOf("Expression", "Value", "On server", "Frq"), 0) {
             override fun isCellEditable(row: Int, column: Int) = row != rowCount - 1
         }.apply {
-            addRow(arrayOf<Any>("+", "", false))
+            addRow(arrayOf<Any>("+", "", false, ""))
         }
     }
 
@@ -72,14 +72,56 @@ object LiveExpressionTable {
                 addNewVariableRow()
             }
             popupMenu.add(actionAddVar)
-        } else if (variableName.isNotBlank()) { // Для остальных строк — "Add to Graph"
+        } else if (variableName.isNotBlank()) {
             val actionAddGraph = JMenuItem("Add to Graph")
             actionAddGraph.addActionListener {
                 SwingUtilities.invokeLater {
-                    PlotManager.addVariable(variableName) // Используем локальную variableName
+                    PlotManager.addVariable(variableName)
                     println("Added to graph: $variableName")
                 }
             }
+            val actionChangeVariableFrq = JMenuItem("Change variable frq")
+            actionChangeVariableFrq.addActionListener {
+                SwingUtilities.invokeLater {
+                    val input = JOptionPane.showInputDialog(
+                        e.component,
+                        "Enter new frequency (in hz):",
+                        "Change Frequency",
+                        JOptionPane.PLAIN_MESSAGE
+                    )
+
+                    if (input != null && input.isNotBlank()) {
+                        try {
+                            val newTimeoutUS = input.toInt()
+                            if (newTimeoutUS <= 0) {
+                                JOptionPane.showMessageDialog(
+                                    e.component,
+                                    "Frequency timeout must be positive!",
+                                    "Error",
+                                    JOptionPane.ERROR_MESSAGE
+                                )
+                                return@invokeLater
+                            }
+
+                            SwingUtilities.invokeLater {
+                                findTableRowByName(variableName)?.let { row ->
+                                    tableModelLiveExpression.setValueAt(newTimeoutUS, row, 3)
+                                }
+                            }
+                            SocketClient.send(SocketClient.createSocketMessage("setVariableReadFrq", variableName, newTimeoutUS))
+                            println("Changed frequency for $variableName to $newTimeoutUS us")
+                        } catch (ex: NumberFormatException) {
+                            JOptionPane.showMessageDialog(
+                                e.component,
+                                "Invalid input! Please enter a valid number.",
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE
+                            )
+                        }
+                    }
+                }
+            }
+            popupMenu.add(actionChangeVariableFrq)
             popupMenu.add(actionAddGraph)
         }
 
@@ -130,7 +172,7 @@ object LiveExpressionTable {
 
         tableModelLiveExpression.insertRow(
             tableModelLiveExpression.rowCount - 1,
-            arrayOf<Any>(variableName, "", false)
+            arrayOf<Any>(variableName, "", false, "1000")
         )
     }
 

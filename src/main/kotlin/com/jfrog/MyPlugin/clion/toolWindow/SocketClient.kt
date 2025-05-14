@@ -88,10 +88,13 @@ object SocketClient {
         }
     }
 
-    fun createSocketMessage(command: String, varName: String, varSize: Int, varAddress: Int, varType: String, updFrqMs: Int = 1000): String {
+    fun createSocketMessage(command: String, varName: String, varSize: Int, varAddress: Int, varType: String, updFrqHz: Int = 1000): String {
         val hexAddress = varAddress.toString(16)
-        return "${command};${varName};${varSize};0x$hexAddress;${updFrqMs};${varType}"
+        return "${command};${varName};${varSize};0x$hexAddress;${updFrqHz};${varType}"
+    }
 
+    fun createSocketMessage(command: String, varName: String, updFrqHz: Int): String {
+        return "${command};${varName};${updFrqHz}"
     }
 
     fun createSocketMessage(command: String): String {
