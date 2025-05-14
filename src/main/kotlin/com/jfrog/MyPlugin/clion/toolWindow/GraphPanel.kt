@@ -8,6 +8,7 @@ import org.jfree.chart.ChartPanel
 import org.jfree.chart.JFreeChart
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer
 import org.jfree.data.xy.XYSeries
+import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -35,27 +36,30 @@ class GraphPanel : JPanel(BorderLayout()) {
         add(controlPanel, BorderLayout.NORTH)
         add(chartPanel, BorderLayout.CENTER)
 
-        chart.xyPlot.renderer = XYLineAndShapeRenderer(true, false)
+        chart.xyPlot.renderer = XYLineAndShapeRenderer(true, false).apply {
+            setSeriesStroke(0, BasicStroke(1.5f)) // Тонкие линии
+            drawSeriesLineAsPath = false // Оптимизация для большого числа точек
+        }
     }
 
     private fun startUpdater() {
         executor.scheduleAtFixedRate({
             updateSeries()
-        }, 0, 1, TimeUnit.SECONDS)
+        }, 0, 200, TimeUnit.MILLISECONDS) // Обновление каждые 500 мс
     }
 
     private fun updateSeries() {
         val seriesData = mutableMapOf<String, List<Pair<Double, Double>>>()
+        val maxPointsPerSeries = 2000 // Максимум точек в серии
 
         PlotManager.forEachSeries { series ->
             val variableName = series.key.toString()
             val history = synchronized(valueHistory) {
                 valueHistory[variableName]?.toList() ?: emptyList()
             }
-            println(valueHistory.size)
             val dataPoints = history.mapNotNull { (time, value) ->
                 value.toPlotValue()?.let { plotValue ->
-                    time.toDouble() to plotValue
+                    time.toDouble() / 1000.0 to plotValue // Переводим время в секунды
                 }
             }
             if (dataPoints.isNotEmpty()) {
@@ -68,6 +72,9 @@ class GraphPanel : JPanel(BorderLayout()) {
                 val variableName = series.key.toString()
                 seriesData[variableName]?.forEach { (time, plotValue) ->
                     series.addOrUpdate(time, plotValue)
+                }
+                while (series.itemCount > maxPointsPerSeries) {
+                    series.remove(0) // Удаляем самые старые точки
                 }
             }
             chartPanel.repaint()

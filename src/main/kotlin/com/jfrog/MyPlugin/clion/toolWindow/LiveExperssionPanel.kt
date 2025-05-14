@@ -111,7 +111,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
     private fun registerVariable(varName: String, row: Int, model: DefaultTableModel) {
         findElfData(varName)?.let { elfData ->
             val address = elfData[0].removePrefix("0x").toInt(16)
-            val message = SocketClient.createSocketMessage("put", varName, elfData[1].toInt(), address, elfData[2])
+            val message = SocketClient.createSocketMessage("put", varName, elfData[1].toInt(), address, elfData[2], 1)
             SocketClient.send(message)
             model.setValueAt(true, row, 2)
         } ?: println("No ELF data found for $varName")
@@ -168,7 +168,7 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
 
     private fun cleanupAfterSession() {
         SwingUtilities.invokeLater {
-            LiveExpressionTable.resetTableModel()
+            //LiveExpressionTable.resetTableModel()
         }
         app.services.readThread.readRunning = false
         println("Live expression session paused")
