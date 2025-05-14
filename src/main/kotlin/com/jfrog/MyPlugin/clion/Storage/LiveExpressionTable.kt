@@ -156,7 +156,6 @@ object LiveExpressionTable {
         }
     }
 
-    //todo отправка добавленного на сервер
     private fun addNewVariableRow() {
         val variableName = JOptionPane.showInputDialog(
             tableLiveExpression,

@@ -136,6 +136,9 @@ class LiveExperssionPanel : JPanel(BorderLayout()) {
                     continue
                 }
 
+                if(!ApplicationManager.getApplication().getService(DebugSessionStateService::class.java).isDebugActive) {
+                    stopLiveExpressionSession()
+                }
                 SocketClient.readLine()?.takeIf { app.services.readAllow.readAllow }?.let {
                     processIncomingData(it)
                 }
