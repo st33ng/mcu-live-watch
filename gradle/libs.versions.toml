@@ -1,6 +1,6 @@
 [versions]
 # libraries
-jfreechart = "1.5.5"
+jfreechart = "1.5.6"
 junit = "4.13.2"
 
 # plugins
