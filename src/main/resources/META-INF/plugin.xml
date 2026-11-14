@@ -1,22 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <idea-plugin>
-    <id>com.jfrog.MyPlugin</id>
-    <name>My Plugin</name>
-    <vendor>Tim</vendor>
+    <id>dev.st33ng.mculivewatch</id>
+    <name>MCU Live Watch</name>
+    <vendor url="https://github.com/st33ng/mcu-live-watch">Timofey Belyaev</vendor>
+
+    <description><![CDATA[
+        Read global variables from a running MCU over a J-Link probe without halting the target.
+        <br>
+        <br>
+        The plugin parses the ELF file of the project, lets you pick symbols, and streams their values
+        into a table and a live chart. Sampling rate is configurable per variable, so a fast-changing
+        value and a slow counter can be watched at the same time.
+        <br>
+        <br>
+        Currently implemented for Arm Cortex-M targets debugged through SEGGER J-Link in CLion.
+    ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.clion</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.jfrog.MyPlugin.clion.toolWindow.HelloWorldToolWindowFactory"
-                    id="MyPluginToolWindow"
+        <toolWindow factoryClass="dev.st33ng.mculivewatch.ui.McuLiveWatchToolWindowFactory"
+                    id="McuLiveWatch"
                     anchor="bottom"
+                    icon="AllIcons.Debugger.Watch"
                     visibleOnStart="false"
                     canCloseContent="true"/>
     </extensions>
-    <applicationListeners>
-        <listener
-                class="com.jfrog.MyPlugin.clion.listener.DebugExecutionListener"
-                topic="com.intellij.execution.ExecutionListener"/>
-    </applicationListeners>
 
+    <applicationListeners>
+        <listener class="dev.st33ng.mculivewatch.listener.DebugExecutionListener"
+                  topic="com.intellij.execution.ExecutionListener"/>
+    </applicationListeners>
 </idea-plugin>

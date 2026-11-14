@@ -1,12 +1,16 @@
 # Qodana configuration:
 # https://www.jetbrains.com/help/qodana/qodana-yaml.html
 
-version: 1.0
-linter: jetbrains/qodana-jvm-community:2024.2
-projectJDK: "17"
+version: "1.0"
+# The plugin targets CLion 2026.2 (build 262), so the inspection image is matched to that release.
+linter: jetbrains/qodana-jvm-community:2026.2
+# No `projectJDK`: the Qodana 2026.2 JVM images ship JBR SDK 25 by default, which is the toolchain
+# this project requires (`jvmToolchain(25)` in build.gradle.kts). Qodana auto-downloads JBR only up to
+# 21, so pinning "21" here would fight the Gradle toolchain.
 profile:
   name: qodana.recommended
 exclude:
   - name: All
     paths:
       - .qodana
+      - build

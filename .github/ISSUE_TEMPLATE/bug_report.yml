@@ -1,0 +1,72 @@
+name: Bug report
+description: Something does not work — the table stays empty, the chart freezes, the probe is not found.
+title: "[Bug]: "
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please check the IDE log (`Help → Show Log in Finder`) for lines containing
+        `J-Link bridge`, `Registered variables`, `ERROR:` or a stack trace — they usually name the
+        cause directly.
+
+  - type: input
+    id: clion-version
+    attributes:
+      label: CLion version
+      description: "`Help → About`, e.g. CLion 2026.2.4.1 (build CL-262.11879.106)"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: "`Settings → Plugins → MCU Live Watch`, e.g. 3.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: mcu
+    attributes:
+      label: MCU and probe
+      description: "Part number and probe, e.g. STM32L100RCT6 with J-Link PLUS (SN ...)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: selected-device
+    attributes:
+      label: Was a device selected in Settings → Select…?
+      options:
+        - "Yes — the exact name from the SEGGER list"
+        - "No — I expected it to be detected"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the MCU Live Watch tool window
+        2. Press Start
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: Paste the `idea.log` excerpt. Debug-level bridge output needs `-Didea.log.debug=true`.
+      render: text
+    validations:
+      required: false

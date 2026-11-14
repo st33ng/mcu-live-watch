@@ -2,9 +2,14 @@
 .idea
 .qodana
 build
+.out
 .DS_Store
 *.pyc
-.ci/tmp/*
-.DS_Store
+__pycache__/
 .intellijPlatform/
-.DS_Store
+.kotlin/
+
+# Working notes kept on disk only: absolute local paths and session history that
+# do not belong in a public repository.
+.github/memory/
+HANDOFF.md

@@ -1,0 +1,40 @@
+name: Feature request
+description: A new probe, MCU family or workflow you would like supported.
+title: "[Feature]: "
+labels: [ "enhancement" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The plugin currently samples over SEGGER J-Link (`pylink`) only. Support for other probes
+        and other MCU families is planned behind the same bridge interface — describe the target
+        you need so the interface can be designed around it.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What is missing?
+      options:
+        - "Another probe (ST-Link, CMSIS-DAP, OpenOCD, ...)"
+        - "Another MCU family or debug interface (not Cortex-M, not SWD)"
+        - "The live expressions table / chart"
+        - "ELF symbol handling"
+        - "Build, packaging or publishing"
+        - "Something else"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What should happen?
+    validations:
+      required: true
+
+  - type: input
+    id: target
+    attributes:
+      label: Target hardware (if relevant)
+      description: "MCU, probe, debug interface, toolchain"
+    validations:
+      required: false

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: JetBrains Marketplace listing
+    url: https://plugins.jetbrains.com/search?search=MCU%20Live%20Watch
+    about: Install the plugin from the Marketplace.
